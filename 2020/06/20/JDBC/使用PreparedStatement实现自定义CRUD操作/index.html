@@ -1,0 +1,226 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="后端小萌新进阶大佬之路"><meta name="keywords" content="后端,Spring MVC,html,css,java,mysql"><title>JDBC使用PreparedStatement实现自定义CRUD操作 | 桃子果汁</title><link rel="stylesheet" type="text/css" href="//fonts.neworld.org/css?family=Source+Code+Pro"><link rel="stylesheet" type="text/css" href="/css/style.css?v=2.0.1"><link rel="stylesheet" type="text/css" href="/css/highlight.css?v=2.0.1"><link rel="Shortcut Icon" href="/favicon.ico"><link rel="bookmark" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><meta name="generator" content="Hexo 4.2.0"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">JDBC使用PreparedStatement实现自定义CRUD操作</h1><a id="logo" href="/.">桃子果汁</a><p class="description">向阳生长</p></div><div id="nav-menu"><a href="/." class="current"><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a></div><div id="search-form"><div id="result-mask" class="hide"></div><label><input id="search-key" type="text" autocomplete="off" placeholder="Arama"></label><div id="result-wrap" class="hide"><div id="search-result"></div></div><div class="hide"><template id="search-tpl"><div class="item"><a href="/{path}" title="{title}"><div class="title">{title}</div><div class="time">{date}</div><div class="tags">{tags}</div></a></div></template></div></div></div><div id="layout" class="layout-g"><div class="layout-l"><div class="content_container"><div class="post"><h1 class="post-title">JDBC使用PreparedStatement实现自定义CRUD操作</h1><div class="post-meta"><a href="/2020/06/20/JDBC/%E4%BD%BF%E7%94%A8PreparedStatement%E5%AE%9E%E7%8E%B0%E8%87%AA%E5%AE%9A%E4%B9%89CRUD%E6%93%8D%E4%BD%9C/#comments" class="comment-count"><i id="changyan_count_unit" data-xid="2020/06/20/JDBC/使用PreparedStatement实现自定义CRUD操作/"></i>留言,<i id="changyan_parti_unit" data-xid="2020/06/20/JDBC/使用PreparedStatement实现自定义CRUD操作/"></i>参与</a><p><span class="date">Jun 20, 2020</span><span><a href="/categories/JDBC/" class="category">JDBC</a></span><span><i id="busuanzi_container_page_pv"><i id="busuanzi_value_page_pv"></i><i>点击</i></i></span></p></div><div class="post-content"><h2 id="一、PreparedStatement介绍"><a href="#一、PreparedStatement介绍" class="headerlink" title="一、PreparedStatement介绍"></a>一、PreparedStatement介绍</h2><ul>
+<li><p>可以通过调用 Connection 对象的 <strong>preparedStatement(String sql)</strong> 方法获取 PreparedStatement 对象</p>
+</li>
+<li><p><strong>PreparedStatement 接口是 Statement 的子接口，它表示一条预编译过的 SQL 语句（与statement的主要区别）</strong></p>
+</li>
+<li><p>PreparedStatement 对象所代表的 SQL 语句中的参数用问号(?)来表示，调用 PreparedStatement 对象的 setXxx() 方法来设置这些参数. setXxx() 方法有两个参数，第一个参数是要设置的 SQL 语句中的参数的索引(从 1 开始)，第二个是设置的 SQL 语句中的参数的值</p>
+</li>
+</ul>
+<h2 id="二、PreparedStatement-vs-Statement"><a href="#二、PreparedStatement-vs-Statement" class="headerlink" title="二、PreparedStatement vs Statement"></a>二、PreparedStatement vs Statement</h2><ul>
+<li><p>代码的可读性和可维护性。</p>
+</li>
+<li><p><strong>PreparedStatement 能最大可能提高性能：</strong></p>
+<ul>
+<li><p>DBServer会对<strong>预编译</strong>语句提供性能优化。因为预编译语句有可能被重复调用，所以<u>语句在被DBServer的编译器编译后的执行代码被缓存下来，那么下次调用时只要是相同的预编译语句就不需要编译，只要将参数直接传入编译过的语句执行代码中就会得到执行。这一点有利于实现更加高效的批量操作</u></p>
+</li>
+<li><p>在statement语句中,即使是相同操作但因为数据内容不一样,所以整个语句本身不能匹配,没有缓存语句的意义.事实是没有数据库会对普通语句编译后的执行代码缓存。这样<u>每执行一次都要对传入的语句编译一次。</u></p>
+</li>
+<li><p>编译步骤(语法检查，语义检查，翻译成二进制命令，缓存)</p>
+</li>
+</ul>
+</li>
+<li><p>PreparedStatement 可以防止Statement的拼串以及 SQL 注入 ，因为预编译导致sql格式固定，所以之后填充的只认为是数据。</p>
+</li>
+<li><p>PreparedStatement 可以实现Statement无法实现的流操作，例如对Blob数据的操作。</p>
+</li>
+</ul>
+<h2 id="三、Java与SQL对应数据类型转换表"><a href="#三、Java与SQL对应数据类型转换表" class="headerlink" title="三、Java与SQL对应数据类型转换表"></a>三、Java与SQL对应数据类型转换表</h2><table>
+<thead>
+<tr>
+<th>Java类型</th>
+<th>SQL类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>boolean</td>
+<td>BIT</td>
+</tr>
+<tr>
+<td>byte</td>
+<td>TINYINT</td>
+</tr>
+<tr>
+<td>short</td>
+<td>SMALLINT</td>
+</tr>
+<tr>
+<td>int</td>
+<td>INTEGER</td>
+</tr>
+<tr>
+<td>long</td>
+<td>BIGINT</td>
+</tr>
+<tr>
+<td>String</td>
+<td>CHAR,VARCHAR,LONGVARCHAR</td>
+</tr>
+<tr>
+<td>byte   array</td>
+<td>BINARY  ,    VAR BINARY</td>
+</tr>
+<tr>
+<td>java.sql.Date</td>
+<td>DATE</td>
+</tr>
+<tr>
+<td>java.sql.Time</td>
+<td>TIME</td>
+</tr>
+<tr>
+<td>java.sql.Timestamp</td>
+<td>TIMESTAMP</td>
+</tr>
+</tbody></table>
+<h2 id="四、使用PreparedStatement实现增、删、改操作"><a href="#四、使用PreparedStatement实现增、删、改操作" class="headerlink" title="四、使用PreparedStatement实现增、删、改操作"></a>四、使用PreparedStatement实现增、删、改操作</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//通用的增、删、改操作（体现一：增、删、改 ； 体现二：针对于不同的表）</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">update</span><span class="params">(String sql,Object ... args)</span></span>&#123;</span><br><span class="line">	Connection conn = <span class="keyword">null</span>;</span><br><span class="line">	PreparedStatement ps = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		<span class="comment">//1.获取数据库的连接，JDBCtils是自定义的通用获取连接方式和释放资源的类</span></span><br><span class="line">		conn = JDBCUtils.getConnection();</span><br><span class="line">		</span><br><span class="line">		<span class="comment">//2.获取PreparedStatement的实例 (或：预编译sql语句)</span></span><br><span class="line">		ps = conn.prepareStatement(sql);</span><br><span class="line">		<span class="comment">//3.填充占位符</span></span><br><span class="line">		<span class="keyword">for</span>(<span class="keyword">int</span> i = <span class="number">0</span>;i &lt; args.length;i++)&#123;</span><br><span class="line">			ps.setObject(i + <span class="number">1</span>, args[i]);</span><br><span class="line">		&#125;</span><br><span class="line">		</span><br><span class="line">		<span class="comment">//4.执行sql语句</span></span><br><span class="line">		ps.execute();</span><br><span class="line">	&#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">		</span><br><span class="line">		e.printStackTrace();</span><br><span class="line">	&#125;<span class="keyword">finally</span>&#123;</span><br><span class="line">		<span class="comment">//5.关闭资源</span></span><br><span class="line">		JDBCUtils.closeResource(conn, ps);</span><br><span class="line">		</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="五、使用PreparedStatement实现查询操作"><a href="#五、使用PreparedStatement实现查询操作" class="headerlink" title="五、使用PreparedStatement实现查询操作"></a>五、使用PreparedStatement实现查询操作</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 通用的针对于不同表的查询:返回一个对象 (version 1.0)</span></span><br><span class="line"><span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">getInstance</span><span class="params">(Class&lt;T&gt; clazz, String sql, Object... args)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">	Connection conn = <span class="keyword">null</span>;</span><br><span class="line">	PreparedStatement ps = <span class="keyword">null</span>;</span><br><span class="line">	ResultSet rs = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		<span class="comment">// 1.获取数据库连接</span></span><br><span class="line">		conn = JDBCUtils.getConnection();</span><br><span class="line"></span><br><span class="line">		<span class="comment">// 2.预编译sql语句，得到PreparedStatement对象</span></span><br><span class="line">		ps = conn.prepareStatement(sql);</span><br><span class="line"></span><br><span class="line">		<span class="comment">// 3.填充占位符</span></span><br><span class="line">		<span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; args.length; i++) &#123;</span><br><span class="line">			ps.setObject(i + <span class="number">1</span>, args[i]);</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">// 4.执行executeQuery(),得到结果集：ResultSet</span></span><br><span class="line">		rs = ps.executeQuery();</span><br><span class="line"></span><br><span class="line">		<span class="comment">// 5.得到结果集的元数据：ResultSetMetaData</span></span><br><span class="line">		ResultSetMetaData rsmd = rs.getMetaData();</span><br><span class="line"></span><br><span class="line">		<span class="comment">// 6.1通过ResultSetMetaData得到columnCount,columnLabel；通过ResultSet得到列值</span></span><br><span class="line">		<span class="keyword">int</span> columnCount = rsmd.getColumnCount();</span><br><span class="line">		<span class="keyword">if</span> (rs.next()) &#123;</span><br><span class="line">       <span class="comment">//体现了ORM编程思想（object relational mapping）</span></span><br><span class="line">       <span class="comment">//一个数据表对应一个java类</span></span><br><span class="line">       <span class="comment">//表中一条记录对应java类的一个对象</span></span><br><span class="line">       <span class="comment">//表中的一个字段对应java类的一个属性</span></span><br><span class="line">			T t = clazz.newInstance();</span><br><span class="line">			<span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; columnCount; i++) &#123;<span class="comment">// 遍历每一个列</span></span><br><span class="line"></span><br><span class="line">				<span class="comment">// 获取列值</span></span><br><span class="line">				Object columnVal = rs.getObject(i + <span class="number">1</span>);</span><br><span class="line">				<span class="comment">// 获取列的别名:列的别名，使用类的属性名充当</span></span><br><span class="line">				String columnLabel = rsmd.getColumnLabel(i + <span class="number">1</span>);</span><br><span class="line">				<span class="comment">// 6.2使用反射，给对象的相应属性赋值</span></span><br><span class="line">				Field field = clazz.getDeclaredField(columnLabel);</span><br><span class="line">				field.setAccessible(<span class="keyword">true</span>); <span class="comment">//若该属性私有，则设置为可访问</span></span><br><span class="line">				field.set(t, columnVal);</span><br><span class="line"></span><br><span class="line">			&#125;</span><br><span class="line"></span><br><span class="line">			<span class="keyword">return</span> t;</span><br><span class="line"></span><br><span class="line">		&#125;</span><br><span class="line">	&#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line"></span><br><span class="line">		e.printStackTrace();</span><br><span class="line">	&#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">		<span class="comment">// 7.关闭资源</span></span><br><span class="line">		JDBCUtils.closeResource(conn, ps, rs);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="keyword">null</span>;  <span class="comment">//发生异常时返回NULL</span></span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>说明：使用PreparedStatement实现的查询操作可以替换Statement实现的查询操作，解决Statement拼串和SQL注入问题。</p>
+</blockquote>
+<h2 id="六、ResultSet与ResultSetMetaData"><a href="#六、ResultSet与ResultSetMetaData" class="headerlink" title="六、ResultSet与ResultSetMetaData"></a>六、ResultSet与ResultSetMetaData</h2><h3 id="6-1-ResultSet"><a href="#6-1-ResultSet" class="headerlink" title="6.1 ResultSet"></a>6.1 ResultSet</h3><ul>
+<li><p>查询需要调用PreparedStatement 的 executeQuery() 方法，查询结果是一个ResultSet 对象</p>
+</li>
+<li><p>ResultSet 对象以逻辑表格的形式封装了执行数据库操作的结果集，ResultSet 接口由数据库厂商提供实现</p>
+</li>
+<li><p>ResultSet 返回的实际上就是一张数据表。有一个指针指向数据表的第一条记录的前面。</p>
+</li>
+<li><p>ResultSet 对象维护了一个指向当前数据行的<strong>游标</strong>，初始的时候，游标在第一行之前，可以通过 ResultSet 对象的 next() 方法移动到下一行。调用 next()方法检测下一行是否有效。若有效，该方法返回 true，且指针下移。相当于Iterator对象的 hasNext() 和 next() 方法的结合体。</p>
+</li>
+<li><p>当指针指向一行时, 可以通过调用 getXxx(int index) 或 getXxx(int columnName) 获取每一列的值。</p>
+<ul>
+<li><p>例如: getInt(1), getString(“name”)</p>
+</li>
+<li><p><strong>注意：Java与数据库交互涉及到的相关Java API中的索引都从1开始。</strong></p>
+</li>
+</ul>
+</li>
+<li><p>ResultSet 接口的常用方法：</p>
+<ul>
+<li><p>boolean next()</p>
+</li>
+<li><p>getString()</p>
+</li>
+<li><p>…</p>
+</li>
+</ul>
+<p><img src="1555580152530.png" alt="1555580152530"></p>
+</li>
+</ul>
+<h3 id="6-2-ResultSetMetaData"><a href="#6-2-ResultSetMetaData" class="headerlink" title="6.2 ResultSetMetaData"></a>6.2 ResultSetMetaData</h3><ul>
+<li><p>可用于获取关于 ResultSet 对象中列的类型和属性信息的对象</p>
+</li>
+<li><p>ResultSetMetaData meta = rs.getMetaData();</p>
+<ul>
+<li><p><strong>getColumnName</strong>(int column)：获取指定列的名称</p>
+</li>
+<li><p><strong>getColumnLabel</strong>(int column)：获取指定列的别名</p>
+</li>
+<li><p><strong>getColumnCount</strong>()：返回当前 ResultSet 对象中的列数。 </p>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li><p>getColumnTypeName(int column)：检索指定列的数据库特定的类型名称。 </p>
+</li>
+<li><p>getColumnDisplaySize(int column)：指示指定列的最大标准宽度，以字符为单位。 </p>
+</li>
+<li><p><strong>isNullable</strong>(int column)：指示指定列中的值是否可以为 null。 </p>
+</li>
+</ul>
+<ul>
+<li>isAutoIncrement(int column)：指示是否自动为指定列进行编号，这样这些列仍然是只读的。 </li>
+</ul>
+<p><img src="1555579494691.png" alt="1555579494691"></p>
+<p><strong>问题1：得到结果集后, 如何知道该结果集中有哪些列 ？ 列名是什么？</strong></p>
+<p>​     需要使用一个描述 ResultSet 的对象， 即 ResultSetMetaData</p>
+<p><strong>问题2：关于ResultSetMetaData</strong></p>
+<ol>
+<li><p><strong>如何获取 ResultSetMetaData</strong>： 调用 ResultSet 的 getMetaData() 方法即可</p>
+</li>
+<li><p><strong>获取 ResultSet 中有多少列</strong>：调用 ResultSetMetaData 的 getColumnCount() 方法</p>
+</li>
+<li><p><strong>获取 ResultSet 每一列的列的别名是什么</strong>：调用 ResultSetMetaData 的getColumnLabel() 方法</p>
+</li>
+</ol>
+<p><img src="1555579816884.png" alt="1555579816884"></p>
+<h2 id="七、资源的释放"><a href="#七、资源的释放" class="headerlink" title="七、资源的释放"></a>七、资源的释放</h2><ul>
+<li><p>释放ResultSet, Statement,Connection。</p>
+</li>
+<li><p>数据库连接（Connection）是非常稀有的资源，用完后必须马上释放，如果Connection不能及时正确的关闭将导致系统宕机。Connection的使用原则是<strong>尽量晚创建，尽量早的释放。</strong></p>
+</li>
+<li><p>可以在finally中关闭，保证及时其他代码出现异常，资源也一定能被关闭。</p>
+</li>
+</ul>
+<h2 id="八、JDBC-API小结"><a href="#八、JDBC-API小结" class="headerlink" title="八、JDBC API小结"></a>八、JDBC API小结</h2><ul>
+<li><p>两种思想</p>
+<ul>
+<li><p>面向接口编程的思想</p>
+</li>
+<li><p>ORM思想(object relational mapping)</p>
+<ul>
+<li>一个数据表对应一个java类</li>
+<li>表中的一条记录对应java类的一个对象</li>
+<li>表中的一个字段对应java类的一个属性</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>sql是需要结合列名和表的属性名来写。注意起别名。</p>
+</blockquote>
+</li>
+<li><p>两种技术</p>
+<ul>
+<li>JDBC结果集的元数据：ResultSetMetaData<ul>
+<li>获取列数：getColumnCount()</li>
+<li>获取列的别名：getColumnLabel()</li>
+</ul>
+</li>
+<li>通过反射，创建指定类的对象，获取指定的属性并赋值</li>
+</ul>
+</li>
+</ul>
+</div><div class="tags"><a href="/tags/JDBC/">JDBC</a></div><div class="post-share"><div class="bdsharebuttonbox"><span style="float:left;line-height: 28px;height: 28px;font-size:16px;font-weight:blod">分享到：</span><a href="#" data-cmd="more" class="bds_more"></a><a href="#" data-cmd="mshare" title="分享到一键分享" class="bds_mshare"></a><a href="#" data-cmd="fbook" title="分享到Facebook" class="bds_fbook"></a><a href="#" data-cmd="twi" title="分享到Twitter" class="bds_twi"></a><a href="#" data-cmd="linkedin" title="分享到linkedin" class="bds_linkedin"></a><a href="#" data-cmd="youdao" title="分享到有道云笔记" class="bds_youdao"></a><a href="#" data-cmd="evernotecn" title="分享到印象笔记" class="bds_evernotecn"></a><a href="#" data-cmd="weixin" title="分享到微信" class="bds_weixin"></a><a href="#" data-cmd="qzone" title="分享到QQ空间" class="bds_qzone"></a><a href="#" data-cmd="tsina" title="分享到新浪微博" class="bds_tsina"></a></div></div><div class="post-nav"><a href="/2020/06/20/JDBC/JDBC%E6%93%8D%E4%BD%9CBLOB%E5%AD%97%E6%AE%B5/" class="pre">JDBC操作BLOB字段</a><a href="/2020/06/20/JDBC/JDBC%E6%93%8D%E4%BD%9C%E5%92%8C%E8%AE%BF%E9%97%AE%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E6%AD%A5%E9%AA%A4/" class="next">JDBC操作和访问数据库的步骤</a></div><div id="comments"><div id="SOHUCS" sid="2020/06/20/JDBC/使用PreparedStatement实现自定义CRUD操作/"></div></div></div></div></div><div class="layout-r"><div id="sidebar"><div class="search-pla"></div><div id="toc" class="widget"><div class="widget-title"><i class="fa fa-fei">文章目录</i></div><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#一、PreparedStatement介绍"><span class="toc-text">一、PreparedStatement介绍</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#二、PreparedStatement-vs-Statement"><span class="toc-text">二、PreparedStatement vs Statement</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#三、Java与SQL对应数据类型转换表"><span class="toc-text">三、Java与SQL对应数据类型转换表</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#四、使用PreparedStatement实现增、删、改操作"><span class="toc-text">四、使用PreparedStatement实现增、删、改操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#五、使用PreparedStatement实现查询操作"><span class="toc-text">五、使用PreparedStatement实现查询操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#六、ResultSet与ResultSetMetaData"><span class="toc-text">六、ResultSet与ResultSetMetaData</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-ResultSet"><span class="toc-text">6.1 ResultSet</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-ResultSetMetaData"><span class="toc-text">6.2 ResultSetMetaData</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#七、资源的释放"><span class="toc-text">七、资源的释放</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#八、JDBC-API小结"><span class="toc-text">八、JDBC API小结</span></a></li></ol></div><div class="widget"><div class="widget-title"><i class="fa fa-xie"> 最新文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2020/06/28/JDBC/Apache-DBUtils%E5%AE%9E%E7%8E%B0CRUD%E6%93%8D%E4%BD%9C/">Apache-DBUtils实现CRUD操作</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/28/JDBC/%20Druid%EF%BC%88%E5%BE%B7%E9%B2%81%E4%BC%8A%EF%BC%89%E6%95%B0%E6%8D%AE%E5%BA%93%E8%BF%9E%E6%8E%A5%E6%B1%A0/">Druid数据库连接池</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/24/JDBC/DBCP%E6%95%B0%E6%8D%AE%E5%BA%93%E8%BF%9E%E6%8E%A5%E6%B1%A0/">DBCP数据库连接池</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/24/JDBC/C3P0%E6%95%B0%E6%8D%AE%E5%BA%93%E8%BF%9E%E6%8E%A5%E6%B1%A0/">C3P0数据库连接池</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/23/JDBC/%E6%95%B0%E6%8D%AE%E5%BA%93%E8%BF%9E%E6%8E%A5%E6%B1%A0/">数据库连接池</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/23/JDBC/DAO%E5%BC%80%E5%8F%91%E6%A8%A1%E5%BC%8F/">DAO开发模式</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/23/JDBC/JDBC%E8%AE%BE%E7%BD%AEMySQL%E7%9A%84%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB/">使用JDBC设置MySQL的隔离级别</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/23/JDBC/%E4%BD%BF%E7%94%A8JDBC%E6%93%8D%E4%BD%9C%E4%BA%8B%E5%8A%A1/">使用JDBC操作事务</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/22/JDBC/JDBC%E4%B8%AD%E7%9A%84%E6%89%B9%E9%87%8F%E6%8F%92%E5%85%A5/">JDBC中的批量插入</a></li><li class="post-list-item"><a class="post-list-link" href="/2020/06/20/JDBC/JDBC%E6%93%8D%E4%BD%9CBLOB%E5%AD%97%E6%AE%B5/">JDBC操作BLOB字段</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-gui"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/IDE/">IDE</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JDBC/">JDBC</a><span class="category-list-count">15</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JVM/">JVM</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Java/">Java</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/MySQL/">MySQL</a><span class="category-list-count">17</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/algorithms/">algorithms</a><span class="category-list-count">4</span></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-biao"> 标签</i></div><div class="tagcloud"><a href="/tags/Spring/" style="font-size: 15px;">Spring</a> <a href="/tags/Java%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" style="font-size: 15px;">Java基础知识</a> <a href="/tags/C-C-%E7%AE%97%E6%B3%95/" style="font-size: 15px;">C/C++算法</a> <a href="/tags/JVM%E8%87%AA%E5%8A%A8%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86/" style="font-size: 15px;">JVM自动内存管理</a> <a href="/tags/MySQL/" style="font-size: 15px;">MySQL</a> <a href="/tags/IDE/" style="font-size: 15px;">IDE</a> <a href="/tags/JDBC/" style="font-size: 15px;">JDBC</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-archive"> 归档</i></div><ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/06/">六月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/02/">二月 2019</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-you"> 友情链接</i></div><ul></ul><a href="https://www.google.com/" title="谷歌" target="_blank">谷歌</a><ul></ul><a href="https://www.baidu.com/" title="百度" target="_blank">百度</a><ul></ul><a href="https://docschina.org/" title="印象中文" target="_blank">印象中文</a><ul></ul><a href="https://kingdot.github.io/" title="木丁夕雨何" target="_blank">木丁夕雨何</a></div></div></div></div><a id="totop" href="#top"></a><div id="footer"><div class="footer-info"><p></p><span>本站总访问量：<i id="busuanzi_container_site_pv"><i id="busuanzi_value_site_pv"></i> 次</i></span><span>|</span><span>Copyright &copy;<a href="/." rel="nofollow">桃子果汁.</a></span></div></div></div><script src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" async></script><script>var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?281cc941ca205b4ebca856d71ae45a55";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+  })();
+</script><script type="text/javascript" src="/js/search.json.js?v=2.0.1"></script><script type="text/javascript" src="/js/toctotop.js?v=2.0.1" async></script><script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"2","bdMiniList":["mshare","weixin","tsina","qzone","linkedin","fbook","twi","print","renren","sqq","evernotecn","bdysc","tqq","tqf","bdxc","kaixin001","tieba","douban","bdhome","thx","ibaidu","meilishuo","mogujie","diandian","huaban","duitang","hx","fx","youdao","sdo","qingbiji","people","xinhua","mail","isohu","yaolan","wealink","ty","iguba","h163","copy"],"bdPic":"","bdStyle":"1","bdSize":"16"},"share":{},"image":{"viewList":["tsina","qzone","weixin","fbook","twi","linkedin","youdao","evernotecn","mshare"],"viewText":"分享到：","viewSize":"16"},"selectShare":{"bdContainerClass":null,"bdSelectMiniList":["tsina","qzone","weixin","fbook","twi","linkedin","youdao","evernotecn","mshare"]}};with(document)0[(getElementsByTagName('head')[0]||head).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];
+</script><script>window._config = { showScore: true };
+(function(){ 
+  var appid = 'cytF5aDWy'; 
+  var conf = 'prod_0650efe38e465b0e4820ce8d9c386815'; 
+  var width = window.innerWidth || document.documentElement.clientWidth; 
+  var nodes =document.getElementsByTagName("head")[0]||document.head||document.documentElement;
+  if (/(Android|iPhone|iPad|iPod|iOS)/i.test(navigator.userAgent) && width < 750) {  
+      window.document.write('<script id="changyan_mobile_js" charset="utf-8" type="text/javascript" src="https://changyan.sohu.com/upload/mobile/wap-js/changyan_mobile.js?client_id=' + appid + '&conf=' + conf + '"><\/script>');
+  }
+  else { 
+    var loadJs=function(d,a){
+      var b=document.createElement("script");b.setAttribute("type","text/javascript");
+      b.setAttribute("charset","UTF-8");
+      b.setAttribute("src",d);
+      if(typeof a==="function"){if(window.attachEvent){b.onreadystatechange=function(){var e=b.readyState;if(e==="loaded"||e==="complete"){b.onreadystatechange=null;a()}}}else{b.onload=a}}
+      nodes.appendChild(b)
+    };
+    loadJs("https://changyan.sohu.com/upload/changyan.js",function(){window.changyan.api.config({appid:appid,conf:conf})}); 
+  } 
+  var loadCss = function(cssString){  
+    var style=document.createElement("style");  
+    style.setAttribute("type", "text/css");  
+    if(style.styleSheet){// IE  
+        style.styleSheet.cssText = cssString;  
+    } else {// w3c  
+        var cssText = document.createTextNode(cssString);  
+        style.appendChild(cssText);  
+    }
+    nodes.appendChild(style);
+  }
+  window.onload=function(){loadCss('.module-hot-topic,.module-cmt-float-bar{display:none!important}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .wrap-action-w .cbox-prompt-w span.prompt-empty-w,#SOHUCS #SOHU_MAIN .module-cmt-float-bar .wrap-cont-w .cont-form-w .form-text-w span.text-null,#SOHUCS #SOHU_MAIN .module-cmt-float-bar .wrap-cont-w .cont-minwidth-w div.cont-comment-w a.comment-link-w,#SOHUCS #SOHU_MAIN .module-cmt-float-bar .wrap-cont-w .cont-minwidth-w div.cont-comment-w span.comment-text-w,#SOHUCS #SOHU_MAIN .module-cmt-footer .section-service-w div.service-wrap-w a:hover,#SOHUCS #SOHU_MAIN .module-cmt-header .section-cbox-w .block-head-w div.header-login,#SOHUCS #SOHU_MAIN .module-cmt-header .section-title-w .title-user-w .user-wrap-w span.wrap-name-w,#SOHUCS #SOHU_MAIN .module-cmt-list .action-click-gw span.click-disable-eg a em.icon-name-bg,#SOHUCS #SOHU_MAIN .module-cmt-list .block-title-gw ul li div.title-name-gw,#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type .cmt-list-number .comment-number span.cy-number,#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type .cmt-list-number span.comment-number,#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type .type-lists li.active,#SOHUCS #SOHU_MAIN .module-cmt-list .msg-wrap-gw .wrap-action-gw .action-click-gw span a:hover,#SOHUCS #SOHU_MAIN .module-cmt-list .picture-box-gw div.box-action-gw a:hover,#SOHUCS #SOHU_MAIN .module-cmt-list .wrap-action-gw .action-click-gw span a:hover em.icon-name-bg,#SOHUCS #SOHU_MAIN .module-cmt-list .wrap-user-gw span.user-name-gw a{color:#40759b!important}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .post-wrap-border-t div.post-wrap-border-t-r,#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w div.post-wrap-border-l,#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w div.post-wrap-border-r{display:none!important}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .post-wrap-border-t div.post-wrap-border-t-l{background:#FFF!important;top:-2px!important}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .wrap-action-w .action-function-w .uploading-wrapper-dw div.wrapper-image-dw,#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w div.post-wrap-main,#SOHUCS #SOHU_MAIN .module-cmt-float-bar .wrap-cont-w .cont-form-w div.form-text-w,#SOHUCS #SOHU_MAIN .module-cmt-header .section-cbox-w .block-head-w div.header-login,#SOHUCS #SOHU_MAIN .module-cmt-list .module-cmt-box .post-wrap-w div.post-wrap-main{border:1px solid #e6e6e6!important;border-radius:20px 20px 20px 20px;margin:0!important}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .wrap-action-w .action-issue-w .issue-btn-w a .btn-fw{width:130px!important;height:34px!important;line-height:33px!important;font-size:17px!important;background:#5483b1!important;border-radius:20px!important;color:#FFF!important;-webkit-box-shadow:0 -1px 4px #5483b1 inset;box-shadow:0 -1px 10px #5483b1 inset}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .wrap-action-w .action-issue-w .issue-btn-w a .btn-fw:before{content:"发表评论"}#SOHUCS #SOHU_MAIN .module-cmt-box .post-wrap-w .wrap-action-w .action-issue-w .issue-btn-w a:hover .btn-fw{color:#40759b!important;background:#FFF!important}#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type .type-lists li{background:none!important;border-bottom:1px solid #e6e6e6}#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type .type-lists li.active{border:1px solid #e6e6e6;border-radius:10px 10px 0 0;border-bottom:none}#SOHUCS #SOHU_MAIN .module-cmt-list .block-title-gw ul li .title-name-gw div.title-name-gw-tag{background:#5483b1!important;border-radius:3px}#SOHUCS #SOHU_MAIN .module-cmt-list .cmt-list-type div.cmt-list-border{background-color:#e6e6e6!important}#SOHUCS #SOHU_MAIN .module-cmt-notice ul.nt-list li.nt-item{border:1px solid #e6e6e6!important}#SOHUCS #SOHU_MAIN .module-cmt-notice ul.nt-list li.nt-item .nt-logo{text-align:center;line-height:40px;border-radius:50%!important;background:#e6e6e6!important}#SOHUCS #SOHU_MAIN .module-cmt-notice ul.nt-list li.nt-item .nt-logo:before{content:"畅";font-size:22px;color:#FFF}#SOHUCS #SOHU_MAIN .module-cmt-notice ul.nt-list li.nt-item a.nt-text,#SOHUCS #SOHU_MAIN .module-cmt-notice ul.nt-list li.nt-item a.nt-text i{color:#5483b1!important}#SOHUCS #SOHU_MAIN .module-cmt-header .section-title-w .title-user-w .user-wrap-w{background:#FFF!important}');};
+})();</script><script src="https://assets.changyan.sohu.com/upload/plugins/plugins.count.js"></script></body></html>
